@@ -1,10 +1,12 @@
 import { faBrain } from "@fortawesome/free-solid-svg-icons";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { FaRobot } from "react-icons/fa";
 import React from "react";
+import Link from "next/link";
+
 
 export default function Logo() {
-  return <div className="text-3xl text-center py-4 font-heading">
-    Blog.AI
-    <FontAwesomeIcon icon={faBrain} className="px-2 text-2xl text-slate-400"></FontAwesomeIcon>
+  return <div className="text-3xl flex justify-center py-4 p-3 font-heading text-orange-600 hover:text-orange-700">
+    <Link href={`/dashboard`}  >BDD Forge</Link> 
+    <FaRobot  className="text-gray-200 ml-2 mt-0.5" />
     </div>;
 }

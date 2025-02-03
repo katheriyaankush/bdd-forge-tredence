@@ -12,9 +12,8 @@ export default function Home() {
       <div className="relative z-10 text-white px-10 py-5 text-center max-w-screen-sm bg-slate-900/90 rounded-md backdrop-blur-sm ">
         <Logo></Logo>
         <p>The AI powered SAS Solution to generate</p>
-        <p>SEO-optimized blog bost in minutues. Get </p>
-        <p>high quality content without wasting your time.</p>
-        <Link href="/post/new" className="btn my-4"> BEGIN</Link>
+        <p>the BDD test cases</p>
+        <Link href="/dashboard" className="btn my-4"> Sign In</Link>
       </div>
     </div>
   );

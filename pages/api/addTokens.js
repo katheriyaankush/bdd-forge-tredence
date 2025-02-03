@@ -4,7 +4,7 @@ import clientPromise from "../../lib/mongodb";
 export default withApiAuthRequired (async function handler(req, res) {
   const { user } = await getSession(req, res);
   const client = await clientPromise;
-  const db = client.db("blogAi");
+  const db = client.db("tredence");
   const userProfile = await db.collection("users").updateOne(
     {
       auth0Id: user.sub,
