@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import AppLayout from "../../Components/AppLayout/AppLayout";
 import jiraData from "../../public/jiraData.json";
@@ -27,7 +27,12 @@ const JiraDashboard = () => {
   const [tickets, setTickets] = useState([]);
   const [loadingMap, setLoadingMap] = useState({});
   const [response, setResponse] = useState({});
+
+  const [filters, setFilters] = useState({})
+  const debounce = useCallback(debounceCreate((searchText) => setFilters({ ...filters, searchText })), [])
+
   const router = useRouter();
+
   useEffect(() => {
     setTickets(jiraData);
   }, []);
@@ -35,6 +40,14 @@ const JiraDashboard = () => {
   const toggleExpand = (id) => {
     setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
   };
+
+  function filterData(data, filters) {
+    let updatedData = [...data]
+    if(filters.hasOwnProperty('searchText')){
+      updatedData = updatedData.filter(entry => entry['description'].toLowerCase().includes(filters['searchText'].toLowerCase()) || entry['summary'].toLowerCase().includes(filters['searchText'].toLowerCase()))
+    }
+    return updatedData
+  }
 
   const handleSubmit = async (topic, jiraId) => {
     setLoadingMap((prev) => ({ ...prev, [jiraId]: true }));
@@ -56,8 +69,14 @@ const JiraDashboard = () => {
   console.log("ResponseData:", response);
   return (
     <div className="p-6 overflow-auto h-full">
+      <div className="my-4">
+        <input type="search" onChange={e => debounce(e.target.value)} className="border-[1px] border-black p-2 rounded-lg" placeholder="Search..." />
+        <div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {tickets.slice(0, visibleTickets).map((ticket) => (
+        {filterData(tickets, filters).slice(0, visibleTickets).map((ticket) => (
           <div key={ticket.id} className="p-4 shadow-lg rounded-2xl border">
             <Link
               href={`/dashboard/${ticket.id}`}
@@ -67,7 +86,7 @@ const JiraDashboard = () => {
             </Link>
             {loadingMap[ticket.id] ? (
               <div className="flex justify-center items-center">
-                <BeatLoader  />
+                <BeatLoader />
               </div>
             ) : (
               <button
@@ -77,31 +96,30 @@ const JiraDashboard = () => {
                 Generate BDD
               </button>
             )}
-             {response[ticket.id] && (
-        <div className="mt-4 p-4 bg-green-100 text-green-800 rounded">
-          <p>✅ Upload successful!</p>
-          <p>
-            📂{" "}
-            <a href={response[ticket.id].files.testCase} 
-              className="text-blue-600"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              View Test Case
-            </a>
-          </p>
-          <p>
-            📜{" "}
-            <a href={response[ticket.id].files.stepDefinitions} className="text-blue-600">
-              View Step Definitions
-            </a>
-          </p>
-        </div>
-      )}
+            {response[ticket.id] && (
+              <div className="mt-4 p-4 bg-green-100 text-green-800 rounded">
+                <p>✅ Upload successful!</p>
+                <p>
+                  📂{" "}
+                  <a href={response[ticket.id].files.testCase}
+                    className="text-blue-600"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    View Test Case
+                  </a>
+                </p>
+                <p>
+                  📜{" "}
+                  <a href={response[ticket.id].files.stepDefinitions} className="text-blue-600">
+                    View Step Definitions
+                  </a>
+                </p>
+              </div>
+            )}
             <span
-              className={`${
-                statusColors[ticket.status] || "bg-gray-500"
-              } text-white px-3 py-1 rounded-full text-xs`}
+              className={`${statusColors[ticket.status] || "bg-gray-500"
+                } text-white px-3 py-1 rounded-full text-xs`}
             >
               {ticket.status}
             </span>
@@ -149,3 +167,17 @@ export default JiraDashboard;
 JiraDashboard.getLayout = function getLayout(page, pageProps) {
   return <AppLayout {...pageProps}>{page}</AppLayout>;
 };
+
+
+function debounceCreate(addToFilter) {
+  let id;
+
+  return (searchText) => {
+    clearTimeout(id)
+    id = setTimeout(() => {
+
+      addToFilter(searchText)
+
+    }, 250);
+  }
+}
