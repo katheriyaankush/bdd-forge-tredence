@@ -15,6 +15,11 @@
 # production
 /build
 
+/public/feature
+/public/testcases
+/public/uploads
+
+
 # misc
 .DS_Store
 *.pem

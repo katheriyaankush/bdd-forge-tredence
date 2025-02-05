@@ -1,23 +1,43 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import AppLayout from "../../Components/AppLayout/AppLayout";
-import { withPageAuthRequired } from "@auth0/nextjs-auth0";
+import { withPageAuthRequired, getSession } from "@auth0/nextjs-auth0";
 import { getAppProps } from "../../utils/getAppProps";
 import { motion } from "framer-motion";
 import { FaRobot, FaMagic, FaBolt } from "react-icons/fa";
+import PopupForm from "../../Components/ProjectForm/PopupForm";
+import clientPromise from "../../lib/mongodb";
 
 export const getServerSideProps = withPageAuthRequired({
   async getServerSideProps(ctx) {
-    const props = await getAppProps(ctx);
-    return {
-      props,
-    };
+    try {
+      const { user } = await getSession(ctx.req, ctx.res);
+      const client = await clientPromise;
+      const db = client.db("tredence");
+
+      const project = await db.collection("projects").findOne({ userId: user.sub });
+      console.log("Project", project)
+      return {
+        props: {
+          project: project ? JSON.parse(JSON.stringify(project)) : null,
+        },
+      };
+    } catch (error) {
+      console.error("Error fetching project:", error);
+      return { props: { project: null } };
+    }
   },
 });
 
-export default function Home() {
+export default function Home({project}) {
+  const [showForm, setShowForm] = useState(false);
+  const handleFormSubmit = () => {
+    setShowForm(false);
+    window.location.href = `/dashboard/${project.tool}`;
+  };
+
   return (
-    <div className="overflow-auto h-full min-h-screen bg-white text-gray-900">
+    <div className=" bg-white text-gray-900">
       {/* Hero Section */}
       <header className="text-center py-8 px-1">
         <motion.h1
@@ -51,18 +71,24 @@ export default function Home() {
           animate={{ opacity: 1 }}
           transition={{ duration: 1, delay: 0.5 }}
         >
-          <Link
-            href={`/dashboard/jira`}
+          { project && <Link
+            href={`/dashboard/${project.tool}`}
             className="px-6 py-3 text-lg bg-blue-500 hover:bg-blue-600 transition rounded-xl shadow-lg text-white"
           >
-            Jira
-          </Link>
-          <button className="px-6 py-3 text-lg bg-blue-500 hover:bg-blue-600 transition rounded-xl shadow-lg text-white">
-            JSON
+            Project
+          </Link>}
+          <button
+            className="px-6 py-3 text-lg bg-blue-500 hover:bg-blue-600 transition rounded-xl shadow-lg text-white"
+            onClick={() => setShowForm(true)}
+          >
+            Project Configuration
           </button>
-          <button className="px-6 py-3 text-lg bg-blue-500 hover:bg-blue-600 transition rounded-xl shadow-lg text-white">
-            GitHub
-          </button>
+          {/* <Link
+            href="/dashboard/new"
+            className="px-6 py-3 text-lg bg-blue-500 hover:bg-blue-600 transition rounded-xl shadow-lg text-white"
+          >
+            New Test Case
+          </Link> */}
         </motion.div>
       </header>
 
@@ -84,6 +110,8 @@ export default function Home() {
           description="Supercharge your business with ultra-fast AI processing."
         />
       </section>
+
+      {showForm && <PopupForm onClose={() => setShowForm(false)} onSubmit={handleFormSubmit}  project={project}/>}
     </div>
   );
 }

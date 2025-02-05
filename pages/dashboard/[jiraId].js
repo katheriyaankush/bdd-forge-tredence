@@ -7,6 +7,7 @@ import Markdown from "react-markdown";
 import { getAppProps } from "../../utils/getAppProps";
 import { withPageAuthRequired, getSession } from "@auth0/nextjs-auth0";
 import UploadBDDFeatureFile from '../../Components/Upload/UploadBDDFeatureFile'
+import { FaChevronDown, FaChevronUp } from "react-icons/fa";
 
 export const getServerSideProps = withPageAuthRequired({
   async getServerSideProps(ctx) {
@@ -47,6 +48,7 @@ const JiraTicketPage = ({ versions, jiraId }) => {
   const [ticket, setTicket] = useState(null);
   const [selectedVersion, setSelectedVersion] = useState(versions);
   const [showVersions, setShowVersions] = useState(false);
+  const [isOpen, setIsOpen] = useState(false);
   console.log("JIRA+Po==", selectedVersion,  versions.previousVersions);
 
 
@@ -64,10 +66,15 @@ const JiraTicketPage = ({ versions, jiraId }) => {
       </div>
     );
   }
-
+  const handleVersion=()=>{
+    setShowVersions(!showVersions)
+    if(showVersions){
+      setSelectedVersion(versions)
+    }
+  }
   return (
     <div className="p-2 overflow-auto h-full">
-      <div className="max-w-3xl mx-auto p-6 bg-white shadow-lg rounded-xl mt-10">
+      <div className="max-w-3xl mx-auto p-6 bg-white shadow-lg rounded-xl mt-2">
         <h1 className="text-2xl font-bold mb-4">{ticket.summary}</h1>
         <p className="text-gray-600">{ticket.description}</p>
         <div className="mt-4">
@@ -119,42 +126,53 @@ const JiraTicketPage = ({ versions, jiraId }) => {
       <div className="max-w-3xl mx-auto p-6 bg-white shadow-lg rounded-xl mt-6">
       
         <button
-          onClick={() => setShowVersions(!showVersions)}
+          onClick={() => handleVersion()}
           className="bg-blue-600 text-white px-4 py-2 rounded-lg mb-4"
         >
           {showVersions ? "Hide Versions" : "Show Versions"}
         </button>
 
-        {showVersions && (
-          <div className="space-y-2">
-            {
-              versions.previousVersions.map((version) => {
-                console.log("Versonn=", version);
-                return (
-                  <button
-                    key={version.version}
-                    onClick={() => setSelectedVersion(version)}
-                    className={`block w-full p-2 text-left border rounded ${
-                      selectedVersion.version === version.version
-                        ? "bg-blue-500 text-white"
-                        : "bg-gray-100"
-                    }`}
-                  >
-                    Version {new Date(version.updated).toLocaleString()}
-                  </button>
-                );
-              })}
-          </div>
-        )}
+         {
+          showVersions && (
+            <div className="relative w-full">
+              <button
+                onClick={() => setIsOpen(!isOpen)}
+                className="w-full p-2 border rounded bg-gray-100 text-left flex justify-between items-center focus:outline-none"
+              >
+                <span>
+                  {selectedVersion ? `Version ${new Date(selectedVersion.updated).toLocaleString()}` : "Select a version"}
+                </span>
+                {isOpen ? <FaChevronUp className="ml-2" /> : <FaChevronDown className="ml-2" />}
+              </button>
+              {isOpen && (
+                <div className="absolute w-full mt-1 bg-white border rounded shadow-lg z-10 max-h-60 overflow-y-auto">
+                  {versions.previousVersions.map((version) => (
+                    <div
+                      key={version.version}
+                      onClick={() => {
+                        setSelectedVersion(version);
+                        setIsOpen(false);
+                      }}
+                      className={`p-2 cursor-pointer hover:bg-gray-200 flex justify-between items-center ${
+                        selectedVersion.version === version.version ? "bg-blue-500 text-white" : ""
+                      }`}
+                    >
+                      <span>Version {new Date(version.updated).toLocaleString()}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>)
+         }
         <h1 className="text-2xl font-bold mt-4">BDD Test Cases</h1>
-        <div className="mt-4">
+        <div className="mt-4 overflow-auto ">
           <Markdown className="py-5">{selectedVersion.bddTestCases}</Markdown>
         </div>
        
       </div>
       <div className="max-w-3xl mx-auto p-6 bg-white shadow-lg rounded-xl mt-6">
         <h1 className="text-2xl font-bold mt-4">Step Definitions</h1>
-      <div className="mt-4">
+      <div className="mt-4 overflow-auto ">
           <Markdown className="py-5">{selectedVersion.stepDefinitions}</Markdown>
         </div>
       </div>

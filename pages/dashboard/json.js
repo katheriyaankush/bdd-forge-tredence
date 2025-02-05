@@ -3,10 +3,11 @@ import Link from "next/link";
 import AppLayout from "../../Components/AppLayout/AppLayout";
 import jiraData from "../../public/jiraData.json";
 import { useRouter } from "next/router";
-import { withPageAuthRequired } from "@auth0/nextjs-auth0";
-import { getAppProps } from "../../utils/getAppProps";
+import { withPageAuthRequired, getSession } from "@auth0/nextjs-auth0";
 import BeatLoader from "react-spinners/BeatLoader";
+import clientPromise from "../../lib/mongodb";
 import { FaSearch } from 'react-icons/fa';
+
 
 const statusColors = {
   "To Do": "bg-gray-400",
@@ -15,14 +16,26 @@ const statusColors = {
 };
 
 export const getServerSideProps = withPageAuthRequired({
-  async getServerSideProps(ctx) {
-    const props = await getAppProps(ctx);
-    return {
-      props,
-    };
-  },
+    async getServerSideProps(ctx) {
+        try {
+          const { user } = await getSession(ctx.req, ctx.res);
+          const client = await clientPromise;
+          const db = client.db("tredence");
+    
+          const project = await db.collection("projects").findOne({ userId: user.sub });
+          console.log("pro==", project)
+          return {
+            props: {
+              project: project ? JSON.parse(JSON.stringify(project)) : null,
+            },
+          };
+        } catch (error) {
+          console.error("Error fetching project:", error);
+          return { props: { project: null } };
+        }
+      },
 });
-const JiraDashboard = () => {
+const JiraDashboard = ({project}) => {
   const [visibleTickets, setVisibleTickets] = useState(6);
   const [tickets, setTickets] = useState([]);
   const [loadingMap, setLoadingMap] = useState({});
@@ -34,8 +47,10 @@ const JiraDashboard = () => {
   const router = useRouter();
 
   useEffect(() => {
-    setTickets(jiraData);
-  }, []);
+    console.log("File", JSON.parse(project.configFile))
+    setTickets(JSON.parse(project.configFile));
+  }, [project.configFile]);
+
 
   function filterData(data, filters) {
     let updatedData = [...data]
@@ -56,18 +71,17 @@ const JiraDashboard = () => {
     });
     const data = await response.json();
     setResponse((prev) => ({ ...prev, [jiraId]: data }));
-    console.log("Response:", response);
     setLoadingMap((prev) => ({ ...prev, [jiraId]: false }));
   };
   console.log("ResponseData:", response);
   return (
     <div className="p-1 overflow-auto h-full">
-      <div className="my-2 relative">
-        <input className=" border-[1px] border-black p-2 pl-10 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 ease-in-out" type="search" onChange={e => debounce(e.target.value)}  placeholder="Search..." />
-        <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
-        <FaSearch className="w-5 h-5" />
-      </span>
-      </div>
+    <div className="my-2 relative">
+      <input className=" border-[1px] border-black p-2 pl-10 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 ease-in-out" type="search" onChange={e => debounce(e.target.value)}  placeholder="Search..." />
+      <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
+      <FaSearch className="w-5 h-5" />
+    </span>
+    </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filterData(tickets, filters).slice(0, visibleTickets).map((ticket) => (
@@ -91,24 +105,8 @@ const JiraDashboard = () => {
               </button>
             )}
             {response[ticket.id] && (
-              <div className="mt-4 p-4 bg-green-100 text-green-800 rounded">
-                <p>✅ Upload successful!</p>
-                <p>
-                  📂{" "}
-                  <a href={response[ticket.id].files.testCase}
-                    className="text-blue-600"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    View Test Case
-                  </a>
-                </p>
-                <p>
-                  📜{" "}
-                  <a href={response[ticket.id].files.stepDefinitions} className="text-blue-600">
-                    View Step Definitions
-                  </a>
-                </p>
+              <div className=" bg-green-100 text-green-800 rounded">
+                <p>✅ Generate successful!</p>
               </div>
             )}
             <span

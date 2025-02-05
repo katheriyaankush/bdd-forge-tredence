@@ -11,6 +11,12 @@ export default withApiAuthRequired(async function handler(req, res) {
     const client = await clientPromise;
     const db = client.db("tredence");
 
+    // Fetch the project data for the user
+    const project = await db.collection("projects").findOne({ userId: user.sub });
+    if (!project) {
+      return res.status(404).json({ error: "Project not found for the user" });
+    }
+
     const openai = new OpenAI();
 
     // Generate BDD Test Cases
@@ -43,7 +49,7 @@ export default withApiAuthRequired(async function handler(req, res) {
         {
           role: "system",
           content:
-            "Generate step definition functions in JavaScript for the given BDD scenarios. The functions should be reusable.",
+            "Generate step definition functions in JavaScript for the given BDD scenarios. The functions should be reusable and properly formatted.",
         },
         {
           role: "user",
@@ -57,6 +63,12 @@ export default withApiAuthRequired(async function handler(req, res) {
     });
 
     let stepDefinitions = stepDefCompletion.choices[0].message.content;
+
+    // **Sanitize the Step Definition Output**
+    stepDefinitions = stepDefinitions
+      .replace(/```javascript/g, "") // Remove JS markdown formatting
+      .replace(/```/g, "") // Remove closing code block
+      .trim(); // Trim any leading/trailing spaces
 
     // **Check for existing test case and versioning**
     const existingTestCase = await db.collection("testcases").findOne({ jiraId });
@@ -90,16 +102,21 @@ export default withApiAuthRequired(async function handler(req, res) {
       });
     }
 
-    // **Save files to local directory**
+    // **Ensure valid project paths**
+    if (!project.outputFeaturePath || !project.outputTestCasesPath) {
+      return res.status(400).json({ error: "Project paths are not set correctly." });
+    }
+
     const testCaseFileName = `testcase_${jiraId}_v${version}.feature`;
     const stepDefFileName = `step_definitions_${jiraId}_v${version}.js`;
-    const testCaseFilePath = path.join(process.cwd(), "public", "testcases", testCaseFileName);
-    const stepDefFilePath = path.join(process.cwd(), "public", "testcases", stepDefFileName);
+    const testCaseFilePath = path.join(project.outputFeaturePath[0], testCaseFileName);
+    const stepDefFilePath = path.join(project.outputTestCasesPath[0], stepDefFileName);
 
-    // Ensure directory exists
+    // **Ensure directories exist**
     fs.mkdirSync(path.dirname(testCaseFilePath), { recursive: true });
+    fs.mkdirSync(path.dirname(stepDefFilePath), { recursive: true });
 
-    // Write files
+    // **Write files**
     fs.writeFileSync(testCaseFilePath, bddTestCases, "utf8");
     fs.writeFileSync(stepDefFilePath, stepDefinitions, "utf8");
 
@@ -110,8 +127,8 @@ export default withApiAuthRequired(async function handler(req, res) {
       jiraId,
       version,
       files: {
-        testCase: `/testcases/${testCaseFileName}`,
-        stepDefinitions: `/testcases/${stepDefFileName}`,
+        testCase: testCaseFilePath,
+        stepDefinitions: stepDefFilePath,
       },
     });
   } catch (error) {
