@@ -3,6 +3,7 @@ import clientPromise from "../../lib/mongodb";
 import OpenAI from "openai";
 import fs from "fs";
 import path from "path";
+import simpleGit from "simple-git";
 
 export default withApiAuthRequired(async function handler(req, res) {
   try {
@@ -11,22 +12,27 @@ export default withApiAuthRequired(async function handler(req, res) {
     const client = await clientPromise;
     const db = client.db("tredence");
 
-    // Fetch the project data for the user
+    // ✅ Fetch the user's project
     const project = await db.collection("projects").findOne({ userId: user.sub });
+
     if (!project) {
       return res.status(404).json({ error: "Project not found for the user" });
     }
 
+    const projectId = project._id.toString();
+    const projectName = project.projectName[0].replace(/\s+/g, "-").toLowerCase();
+    const userName = user.name.replace(/\s+/g, "-").toLowerCase();
+
     const openai = new OpenAI();
 
-    // Generate BDD Test Cases
+    // ✅ Generate BDD Test Cases
     const bddCompletion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
           content:
-            "You generate Behavior-Driven Development (BDD) test cases based on the given software requirement. The output follows the Gherkin syntax.",
+            "Generate BDD test cases based on the given requirement. The output follows the Gherkin syntax.",
         },
         {
           role: "user",
@@ -39,21 +45,20 @@ export default withApiAuthRequired(async function handler(req, res) {
       ],
     });
 
-    let bddTestCases = bddCompletion.choices[0].message.content;
-    bddTestCases = bddTestCases.replace(/[\*#]/g, ""); // Remove special characters
+    let bddTestCases = bddCompletion.choices[0].message.content.replace(/[\*#]/g, "");
 
-    // Generate Step Definition File
+    // ✅ Generate Step Definitions
     const stepDefCompletion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         {
           role: "system",
           content:
-            "Generate step definition functions in JavaScript for the given BDD scenarios. The functions should be reusable and properly formatted.",
+            "Generate step definition functions in JavaScript for the given BDD scenarios. The functions should be reusable and well-structured.",
         },
         {
           role: "user",
-          content: `Based on the following BDD test cases, generate a JavaScript step definition file:
+          content: `Generate step definitions for the following BDD test cases:
           ---
           ${bddTestCases}
           ---
@@ -62,21 +67,23 @@ export default withApiAuthRequired(async function handler(req, res) {
       ],
     });
 
-    let stepDefinitions = stepDefCompletion.choices[0].message.content;
+    let stepDefinitions = stepDefCompletion.choices[0].message.content
+      .replace(/```javascript/g, "")
+      .replace(/```/g, "")
+      .trim();
 
-    // **Sanitize the Step Definition Output**
-    stepDefinitions = stepDefinitions
-      .replace(/```javascript/g, "") // Remove JS markdown formatting
-      .replace(/```/g, "") // Remove closing code block
-      .trim(); // Trim any leading/trailing spaces
+    // ✅ Find existing test case for the user + project + Jira ID
+    const existingTestCase = await db.collection("testcases").findOne({ 
+      userId: user.sub, 
+      jiraId, 
+      projectId 
+    });
 
-    // **Check for existing test case and versioning**
-    const existingTestCase = await db.collection("testcases").findOne({ jiraId });
     let version = 1;
     if (existingTestCase) {
       version = existingTestCase.version + 1;
       await db.collection("testcases").updateOne(
-        { jiraId },
+        { userId: user.sub, jiraId, projectId },
         {
           $set: { bddTestCases, stepDefinitions, version, updated: new Date() },
           $push: {
@@ -95,6 +102,7 @@ export default withApiAuthRequired(async function handler(req, res) {
         stepDefinitions,
         topic,
         jiraId,
+        projectId,
         userId: user.sub,
         version,
         previousVersions: [],
@@ -102,29 +110,51 @@ export default withApiAuthRequired(async function handler(req, res) {
       });
     }
 
-    // **Ensure valid project paths**
-    if (!project.outputFeaturePath || !project.outputTestCasesPath) {
-      return res.status(400).json({ error: "Project paths are not set correctly." });
+    // ✅ Ensure valid project paths
+    if (!project.outputFeaturePath || !project.outputTestCasesPath || !project.gitRepoUrl) {
+      return res.status(400).json({ error: "Project paths or GitHub repository URL are missing." });
     }
 
-    const testCaseFileName = `testcase_${jiraId}_v${version}.feature`;
-    const stepDefFileName = `step_definitions_${jiraId}_v${version}.js`;
+    // ✅ **Updated File Naming Format**
+    const testCaseFileName = `testcase_${projectName}_${userName}_${jiraId}_v${version}.feature`;
+    const stepDefFileName = `step_definitions_${projectName}_${userName}_${jiraId}_v${version}.js`;
+
     const testCaseFilePath = path.join(project.outputFeaturePath[0], testCaseFileName);
     const stepDefFilePath = path.join(project.outputTestCasesPath[0], stepDefFileName);
 
-    // **Ensure directories exist**
+    // ✅ Ensure directories exist
     fs.mkdirSync(path.dirname(testCaseFilePath), { recursive: true });
     fs.mkdirSync(path.dirname(stepDefFilePath), { recursive: true });
 
-    // **Write files**
+    // ✅ Write files
     fs.writeFileSync(testCaseFilePath, bddTestCases, "utf8");
     fs.writeFileSync(stepDefFilePath, stepDefinitions, "utf8");
 
-    console.log("BDD Test Case & Step Definitions saved:", { jiraId, version });
+    console.log("BDD & Step Definitions saved:", { jiraId, projectId, version });
+
+    // 🔹 **GitHub Auto-Push Functionality**
+    const git = simpleGit({ baseDir: "/Users/macbook/Documents/TRAFT" });
+    try {
+      // ✅ Initialize repository if not already initialized
+      console.log("1==", await git.checkIsRepo())
+      if (!(await git.checkIsRepo())) {
+        await git.init();
+        await git.addRemote("origin", project.gitRepoUrl[0]);
+      }
+
+      // ✅ Add, Commit, and Push changes
+      await git.add([testCaseFilePath, stepDefFilePath]);
+      await git.commit(`Added BDD & Step Definitions for ${jiraId} (Version ${version})`);
+      await git.push("origin", "master"); // Change branch if necessary
+
+    } catch (gitError) {
+      console.error("Git Push Failed:", gitError);
+    }
 
     res.status(200).json({
-      message: "Test case and step definitions saved successfully",
+      message: "Test case and step definitions saved & pushed to GitHub successfully",
       jiraId,
+      projectId,
       version,
       files: {
         testCase: testCaseFilePath,

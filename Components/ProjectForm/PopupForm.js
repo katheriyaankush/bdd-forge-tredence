@@ -1,19 +1,27 @@
 import React, { useState } from "react";
 
 const PopupForm = ({ onClose, onSubmit, project }) => {
-  const [tool, setTool] = useState(project.tool);
-  const [projectName, setProjectName] = useState(project.projectName);
+  const [tool, setTool] = useState(project?.tool || "");
+  const [projectName, setProjectName] = useState(project?.projectName || "");
   const [configFile, setConfigFile] = useState(null);
-  const [outputFeaturePath, setOutputFeaturePath] = useState(project.outputFeaturePath);
-  const [outputTestCasesPath, setOutputTestCasesPath] = useState(project.outputTestCasesPath);
+  const [gitRepoUrl, setGitRepoUrl] = useState(project?.gitRepoUrl || "");
+  const [outputFeaturePath, setOutputFeaturePath] = useState(project?.outputFeaturePath || "");
+  const [outputTestCasesPath, setOutputTestCasesPath] = useState(project?.outputTestCasesPath || "");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Validate configFile is required if tool is not "json"
+    if (tool === "json" && !configFile) {
+      alert("Configuration file is required for the selected tool.");
+      return;
+    }
 
     const formData = new FormData();
     formData.append("tool", tool);
     formData.append("projectName", projectName);
     formData.append("configFile", configFile);
+    formData.append("gitRepoUrl", gitRepoUrl);
     formData.append("outputTestCasesPath", outputTestCasesPath);
     formData.append("outputFeaturePath", outputFeaturePath);
 
@@ -24,7 +32,7 @@ const PopupForm = ({ onClose, onSubmit, project }) => {
       });
 
       if (response.ok) {
-        onSubmit();
+        onSubmit(tool);
       } else {
         console.error("Form submission failed");
       }
@@ -64,13 +72,24 @@ const PopupForm = ({ onClose, onSubmit, project }) => {
             />
           </div>
           <div className="mb-4">
-            <label className="block text-sm font-medium mb-2">Configuration File</label>
+            <label className="block text-sm font-medium mb-2">Git Repository URL</label>
             <input
-              type="file"
+              type="text"
               className="w-full p-2 border border-gray-300 rounded"
-              onChange={(e) => setConfigFile(e.target.files[0])}
+              value={gitRepoUrl}
+              onChange={(e) => setGitRepoUrl(e.target.value)}
+              required
             />
           </div>
+            <div className="mb-4">
+              <label className="block text-sm font-medium mb-2">Configuration File</label>
+              <input
+                type="file"
+                className="w-full p-2 border border-gray-300 rounded"
+                onChange={(e) => setConfigFile(e.target.files[0])}
+                required={tool === "json"}
+              />
+            </div>
           <div className="mb-4">
             <label className="block text-sm font-medium mb-2">Feature Path</label>
             <input

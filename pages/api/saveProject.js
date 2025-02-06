@@ -49,13 +49,14 @@ export default withApiAuthRequired(async function handler(req, res) {
 
     
 
-    const { tool, projectName, outputTestCasesPath, outputFeaturePath } = fields;
+    const { tool, projectName, outputTestCasesPath, outputFeaturePath, gitRepoUrl } = fields;
 
     // Prepare the project data
     const projectData = {
       userId: user.sub, // Unique identifier for the user
       tool,
       projectName,
+      gitRepoUrl,
       configFile,
       outputTestCasesPath,
       outputFeaturePath,

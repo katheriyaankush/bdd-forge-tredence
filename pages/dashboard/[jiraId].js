@@ -15,33 +15,34 @@ export const getServerSideProps = withPageAuthRequired({
     const { user } = await getSession(ctx.req, ctx.res);
     const client = await clientPromise;
     const db = client.db("tredence");
+
     const userId = user.sub;
     const jiraId = ctx.params.jiraId;
 
-    const versions = await db
-      .collection("testcases")
-      .find({ jiraId })
-      .sort({ created: -1 })
-      .toArray();
-    if (!versions.length) {
-      return {
-        redirect: {
-          destination: "/dashboard",
-          permanent: false,
-        },
-      };
+    // 🔹 Fetch Project ID for the User (if exists)
+    const project = await db.collection("projects").findOne({ userId });
+    const projectId = project ? project._id.toString() : null;
+
+    // 🔹 Fetch Test Case Versions (only if projectId exists)
+    let versions = [];
+    if (projectId) {
+      versions = await db
+        .collection("testcases")
+        .find({ jiraId, projectId, userId })
+        .sort({ created: -1 })
+        .toArray();
     }
 
     return {
       props: {
-        versions: JSON.parse(JSON.stringify(versions[0])),
+        versions: versions.length > 0 ? JSON.parse(JSON.stringify(versions[0])) : null,
         jiraId,
-        projects
+        projects,
       },
-     
     };
   },
 });
+
 
 const JiraTicketPage = ({ versions, jiraId }) => {
   const router = useRouter();
@@ -49,7 +50,7 @@ const JiraTicketPage = ({ versions, jiraId }) => {
   const [selectedVersion, setSelectedVersion] = useState(versions);
   const [showVersions, setShowVersions] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
-  console.log("JIRA+Po==", selectedVersion,  versions.previousVersions);
+  console.log("JIRA+Po==",  versions);
 
 
   useEffect(() => {
@@ -122,6 +123,7 @@ const JiraTicketPage = ({ versions, jiraId }) => {
           )}
         </div>
       </div>
+      {versions && (<>
       <UploadBDDFeatureFile jiraId={jiraId}/>
       <div className="max-w-3xl mx-auto p-6 bg-white shadow-lg rounded-xl mt-6">
       
@@ -140,7 +142,7 @@ const JiraTicketPage = ({ versions, jiraId }) => {
                 className="w-full p-2 border rounded bg-gray-100 text-left flex justify-between items-center focus:outline-none"
               >
                 <span>
-                  {selectedVersion ? `Version ${new Date(selectedVersion.updated).toLocaleString()}` : "Select a version"}
+                  {selectedVersion.updated ? `Version ${new Date(selectedVersion.updated).toLocaleString()}` : "Select a version"}
                 </span>
                 {isOpen ? <FaChevronUp className="ml-2" /> : <FaChevronDown className="ml-2" />}
               </button>
@@ -175,7 +177,7 @@ const JiraTicketPage = ({ versions, jiraId }) => {
       <div className="mt-4 overflow-auto ">
           <Markdown className="py-5">{selectedVersion.stepDefinitions}</Markdown>
         </div>
-      </div>
+      </div> </>)}
     </div>
   );
 };

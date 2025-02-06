@@ -16,7 +16,7 @@ export const getServerSideProps = withPageAuthRequired({
       const db = client.db("tredence");
 
       const project = await db.collection("projects").findOne({ userId: user.sub });
-      console.log("Project", project)
+     // console.log("Project", project)
       return {
         props: {
           project: project ? JSON.parse(JSON.stringify(project)) : null,
@@ -31,9 +31,9 @@ export const getServerSideProps = withPageAuthRequired({
 
 export default function Home({project}) {
   const [showForm, setShowForm] = useState(false);
-  const handleFormSubmit = () => {
+  const handleFormSubmit = (tool) => {
     setShowForm(false);
-    window.location.href = `/dashboard/${project.tool}`;
+    window.location.href = `/dashboard/${tool}`;
   };
 
   return (

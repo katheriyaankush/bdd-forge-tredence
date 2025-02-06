@@ -6,7 +6,7 @@ import { useRouter } from "next/router";
 import { withPageAuthRequired } from "@auth0/nextjs-auth0";
 import { getAppProps } from "../../utils/getAppProps";
 import BeatLoader from "react-spinners/BeatLoader";
-import { FaSearch } from 'react-icons/fa';
+import { FaSearch } from "react-icons/fa";
 
 const statusColors = {
   "To Do": "bg-gray-400",
@@ -28,8 +28,11 @@ const JiraDashboard = () => {
   const [loadingMap, setLoadingMap] = useState({});
   const [response, setResponse] = useState({});
 
-  const [filters, setFilters] = useState({})
-  const debounce = useCallback(debounceCreate((searchText) => setFilters({ ...filters, searchText })), [])
+  const [filters, setFilters] = useState({});
+  const debounce = useCallback(
+    debounceCreate((searchText) => setFilters({ ...filters, searchText })),
+    []
+  );
 
   const router = useRouter();
 
@@ -38,111 +41,124 @@ const JiraDashboard = () => {
   }, []);
 
   function filterData(data, filters) {
-    let updatedData = [...data]
-    if(filters.hasOwnProperty('searchText')){
-      updatedData = updatedData.filter(entry => entry['description'].toLowerCase().includes(filters['searchText'].toLowerCase()) || entry['summary'].toLowerCase().includes(filters['searchText'].toLowerCase()))
+    let updatedData = [...data];
+    if (filters.hasOwnProperty("searchText")) {
+      updatedData = updatedData.filter(
+        (entry) =>
+          entry["description"]
+            .toLowerCase()
+            .includes(filters["searchText"].toLowerCase()) ||
+          entry["summary"]
+            .toLowerCase()
+            .includes(filters["searchText"].toLowerCase())
+      );
     }
-    return updatedData
+    return updatedData;
   }
 
   const handleSubmit = async (topic, jiraId) => {
     setLoadingMap((prev) => ({ ...prev, [jiraId]: true }));
-    const response = await fetch("http://localhost:3000/api/generateTestCases", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({ topic, jiraId }),
-    });
+    const response = await fetch(
+      "http://localhost:3000/api/generateTestCases",
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ topic, jiraId }),
+      }
+    );
     const data = await response.json();
     setResponse((prev) => ({ ...prev, [jiraId]: data }));
     console.log("Response:", response);
     setLoadingMap((prev) => ({ ...prev, [jiraId]: false }));
   };
-  console.log("ResponseData:", response);
+  console.log("ResponseData:", tickets);
   return (
     <div className="p-1 overflow-auto h-full">
       <div className="my-2 relative">
-        <input className=" border-[1px] border-black p-2 pl-10 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 ease-in-out" type="search" onChange={e => debounce(e.target.value)}  placeholder="Search..." />
+        <input
+          className=" border-[1px] border-black p-2 pl-10 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-300 ease-in-out"
+          type="search"
+          onChange={(e) => debounce(e.target.value)}
+          placeholder="Search..."
+        />
         <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-500">
-        <FaSearch className="w-5 h-5" />
-      </span>
+          <FaSearch className="w-5 h-5" />
+        </span>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filterData(tickets, filters).slice(0, visibleTickets).map((ticket) => (
-          <div key={ticket.id} className="p-4 shadow-lg rounded-2xl border">
-            <Link
-              href={`/dashboard/${ticket.id}`}
-              className="block hover:underline"
+        {filterData(tickets, filters)
+          .slice(0, visibleTickets)
+          .map((ticket) => (
+            <div
+              key={ticket.id}
+              className="p-4 shadow-lg rounded-2xl border hover:bg-slate-100"
             >
-              <h2 className="text-lg font-bold">{ticket.summary}</h2>
-            </Link>
-            {loadingMap[ticket.id] ? (
-              <div className="flex justify-center items-center">
-                <BeatLoader />
-              </div>
-            ) : (
-              <button
-                className="mt-6 px-2 py-1 bg-blue-600 block text-white rounded-sm text-xs mb-2"
-                onClick={() => handleSubmit(ticket.summary, ticket.id)}
+              <Link
+                href={`/dashboard/${ticket.id}`}
+                className="block hover:underline"
               >
-                Generate BDD
-              </button>
-            )}
-            {response[ticket.id] && (
-              <div className="mt-4 p-4 bg-green-100 text-green-800 rounded">
-                <p>✅ Upload successful!</p>
+                <h2 className="text-lg font-bold">{ticket.summary}</h2>
+              </Link>
+              {loadingMap[ticket.id] ? (
+                <div className="flex justify-center items-center">
+                  <BeatLoader />
+                </div>
+              ) : (
+                <button
+                  className="mt-6 px-2 py-1 bg-blue-600 block text-white rounded-sm text-xs mb-2 hover:bg-blue-800"
+                  onClick={() => handleSubmit(ticket.summary, ticket.id)}
+                >
+                  Generate BDD
+                </button>
+              )}
+              {response[ticket.id] && (
+                <div className=" bg-green-100 text-green-800 rounded">
+                  <p>✅ Generate successful!</p>
+                </div>
+              )}
+              <span
+                className={
+                  "bg-gray-700 text-white px-3 py-1 rounded-full text-xs"
+                }
+              >
+                #{ticket.id}
+              </span>
+              <span
+                className={`${
+                  statusColors[ticket.status] || "bg-gray-500"
+                } text-white px-3 py-1 rounded-full text-xs ml-3 `}
+              >
+                {ticket.status}
+              </span>
+              <p className="text-sm text-gray-600 mt-2">{ticket.description}</p>
+              <div className="mt-4 text-sm">
                 <p>
-                  📂{" "}
-                  <a href={response[ticket.id].files.testCase}
-                    className="text-blue-600"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    View Test Case
-                  </a>
+                  <strong>Priority:</strong> {ticket.priority}
                 </p>
                 <p>
-                  📜{" "}
-                  <a href={response[ticket.id].files.stepDefinitions} className="text-blue-600">
-                    View Step Definitions
-                  </a>
+                  <strong>Assignee:</strong>{" "}
+                  {ticket.assignee ? ticket.assignee.name : "Unassigned"}
+                </p>
+                <p>
+                  <strong>Reporter:</strong> {ticket.reporter.name}
                 </p>
               </div>
-            )}
-            <span
-              className={`${statusColors[ticket.status] || "bg-gray-500"
-                } text-white px-3 py-1 rounded-full text-xs`}
-            >
-              {ticket.status}
-            </span>
-            <p className="text-sm text-gray-600 mt-2">{ticket.description}</p>
-            <div className="mt-4 text-sm">
-              <p>
-                <strong>Priority:</strong> {ticket.priority}
-              </p>
-              <p>
-                <strong>Assignee:</strong>{" "}
-                {ticket.assignee ? ticket.assignee.name : "Unassigned"}
-              </p>
-              <p>
-                <strong>Reporter:</strong> {ticket.reporter.name}
-              </p>
+              <div className="flex gap-2 mt-3">
+                {Array.isArray(ticket.labels) &&
+                  ticket.labels.map((label) => (
+                    <span
+                      key={label}
+                      className="bg-blue-500 text-white px-2 py-1 rounded-full text-xs"
+                    >
+                      {label}
+                    </span>
+                  ))}
+              </div>
             </div>
-            <div className="flex gap-2 mt-3">
-              {Array.isArray(ticket.labels) &&
-                ticket.labels.map((label) => (
-                  <span
-                    key={label}
-                    className="bg-blue-500 text-white px-2 py-1 rounded-full text-xs"
-                  >
-                    {label}
-                  </span>
-                ))}
-            </div>
-          </div>
-        ))}
+          ))}
       </div>
       {visibleTickets < jiraData.length && (
         <button
@@ -162,16 +178,13 @@ JiraDashboard.getLayout = function getLayout(page, pageProps) {
   return <AppLayout {...pageProps}>{page}</AppLayout>;
 };
 
-
 function debounceCreate(addToFilter) {
   let id;
 
   return (searchText) => {
-    clearTimeout(id)
+    clearTimeout(id);
     id = setTimeout(() => {
-
-      addToFilter(searchText)
-
+      addToFilter(searchText);
     }, 250);
-  }
+  };
 }
